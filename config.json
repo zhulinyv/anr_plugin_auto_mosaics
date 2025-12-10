@@ -1,5 +1,5 @@
 {
-    "detector": "YOLO+SAM",
+    "detector": "YOLO",
     "yolo_model": ".\/plugins\/anr_plugin_auto_mosaics\/models\/yolo\/censor.pt",
-    "sam_model": ".\/plugins\/anr_plugin_auto_mosaics\/models\/sams\/sam_vit_h_4b8939.pth"
+    "sam_model": ".\/plugins\/anr_plugin_auto_mosaics\/models\/sams\/sam_vit_b_01ec64.pth"
 }
