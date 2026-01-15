@@ -9,6 +9,7 @@ from PIL import Image
 from plugins.anr_plugin_auto_mosaics.detector import detector
 from plugins.anr_plugin_auto_mosaics.mosaics import ImageMosaicProcessor
 from utils import download, read_json
+from utils.image_tools import revert_image_info
 from utils.logger import logger
 
 
@@ -37,7 +38,9 @@ def save_config(detector, yolo_model, sam_model: str):
     data["yolo_model"] = yolo_model
     data["sam_model"] = sam_model
 
-    with open("./plugins/anr_plugin_auto_mosaics/config.json", "w", encoding="utf-8") as file:
+    with open(
+        "./plugins/anr_plugin_auto_mosaics/config.json", "w", encoding="utf-8"
+    ) as file:
         json.dump(data, file, ensure_ascii=False, indent=4)
 
     if detector == "YOLO+SAM" and not os.path.exists(data["sam_model"]):
@@ -150,7 +153,9 @@ def main(
     if mosaic_input_text:
         images_list = [mosaic_input_text]
     else:
-        images_list = [mosaic_input_path + f"/{i}" for i in os.listdir(mosaic_input_path)]
+        images_list = [
+            mosaic_input_path + f"/{i}" for i in os.listdir(mosaic_input_path)
+        ]
 
     for image in images_list:
         _break = read_json("./outputs/temp_break.json")
@@ -163,9 +168,13 @@ def main(
 
         mask_path = detector(image, part)
         if method == "像素":
-            output_path = processor.pixel_mosaic(image, mask_path, pixel_size=pixel_size)
+            output_path = processor.pixel_mosaic(
+                image, mask_path, pixel_size=pixel_size
+            )
         elif method == "模糊":
-            output_path = processor.blur_mosaic(image, mask_path, blur_radius=blur_radius)
+            output_path = processor.blur_mosaic(
+                image, mask_path, blur_radius=blur_radius
+            )
         elif method == "线条":
             output_path = processor.line_mosaic(
                 image,
@@ -174,14 +183,25 @@ def main(
                 spacing_range=(line_spacing_min, line_spacing_max),
             )
         elif method == "纯色":
-            output_path = processor.solid_color_mosaic(image, mask_path, color=color_change(color))
+            output_path = processor.solid_color_mosaic(
+                image, mask_path, color=color_change(color)
+            )
         elif method == "表情":
             output_path = processor.emoji_mosaic(
-                image, mask_path, [emoji + f"/{i}" for i in os.listdir(emoji)], position="center"
+                image,
+                mask_path,
+                [emoji + f"/{i}" for i in os.listdir(emoji)],
+                position="center",
             )
 
         if output_path:
             logger.success(f"处理完成! 图片已保存到 {os.path.abspath(output_path)}")
             result_list.append(output_path)
+
+            logger.debug("正在还原元数据...")
+            if revert_image_info(image, output_path):
+                logger.success("还原成功!")
+            else:
+                logger.error("还原失败!")
 
     return result_list
