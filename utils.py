@@ -5,6 +5,7 @@ import gradio as gr
 import numpy as np
 import ujson as json
 from PIL import Image
+from rich.progress import Progress
 
 from plugins.anr_plugin_auto_mosaics.detector import detector
 from plugins.anr_plugin_auto_mosaics.mosaics import ImageMosaicProcessor
@@ -157,51 +158,54 @@ def main(
             mosaic_input_path + f"/{i}" for i in os.listdir(mosaic_input_path)
         ]
 
-    for image in images_list:
-        _break = read_json("./outputs/temp_break.json")
-        if _break["break"]:
-            logger.warning("已停止生成!")
-            break
+    with Progress(transient=True) as progress:
+        task = progress.add_task("正在打码:", total=len(images_list))
+        for image in images_list:
+            _break = read_json("./outputs/temp_break.json")
+            if _break["break"]:
+                logger.warning("已停止生成!")
+                break
 
-        if is_pure_black_image(image):
-            continue
+            if is_pure_black_image(image):
+                continue
 
-        mask_path = detector(image, part)
-        if method == "像素":
-            output_path = processor.pixel_mosaic(
-                image, mask_path, pixel_size=pixel_size
-            )
-        elif method == "模糊":
-            output_path = processor.blur_mosaic(
-                image, mask_path, blur_radius=blur_radius
-            )
-        elif method == "线条":
-            output_path = processor.line_mosaic(
-                image,
-                mask_path,
-                line_width_range=(line_width_min, line_width_max),
-                spacing_range=(line_spacing_min, line_spacing_max),
-            )
-        elif method == "纯色":
-            output_path = processor.solid_color_mosaic(
-                image, mask_path, color=color_change(color)
-            )
-        elif method == "表情":
-            output_path = processor.emoji_mosaic(
-                image,
-                mask_path,
-                [emoji + f"/{i}" for i in os.listdir(emoji)],
-                position="center",
-            )
+            mask_path = detector(image, part)
+            if method == "像素":
+                output_path = processor.pixel_mosaic(
+                    image, mask_path, pixel_size=pixel_size
+                )
+            elif method == "模糊":
+                output_path = processor.blur_mosaic(
+                    image, mask_path, blur_radius=blur_radius
+                )
+            elif method == "线条":
+                output_path = processor.line_mosaic(
+                    image,
+                    mask_path,
+                    line_width_range=(line_width_min, line_width_max),
+                    spacing_range=(line_spacing_min, line_spacing_max),
+                )
+            elif method == "纯色":
+                output_path = processor.solid_color_mosaic(
+                    image, mask_path, color=color_change(color)
+                )
+            elif method == "表情":
+                output_path = processor.emoji_mosaic(
+                    image,
+                    mask_path,
+                    [emoji + f"/{i}" for i in os.listdir(emoji)],
+                    position="center",
+                )
 
-        if output_path:
-            logger.success(f"处理完成! 图片已保存到 {os.path.abspath(output_path)}")
-            result_list.append(output_path)
+            if output_path:
+                logger.success(f"处理完成! 图片已保存到 {os.path.abspath(output_path)}")
+                result_list.append(output_path)
 
-            logger.debug("正在还原元数据...")
-            if revert_image_info(image, output_path):
-                logger.success("还原成功!")
-            else:
-                logger.error("还原失败!")
+                logger.debug("正在还原元数据...")
+                if revert_image_info(image, output_path):
+                    logger.success("还原成功!")
+                else:
+                    logger.error("还原失败!")
+            progress.advance(task)
 
     return result_list
