@@ -3,3 +3,4 @@ opencv-python
 ultralytics
 segment_anything
 torch
+nudenet
