@@ -7,7 +7,7 @@ from PIL import Image
 
 from plugins.anr_plugin_auto_mosaics.detector import detector
 from plugins.anr_plugin_auto_mosaics.mosaics import ImageMosaicProcessor
-from utils import download, read_json
+from utils import check_stop, download, read_json, reset_stop
 from utils.image_tools import revert_image_info
 from utils.logger import logger
 
@@ -102,8 +102,7 @@ def main(
     mosaic_input_text,
     part,
 ):
-    with open("./outputs/temp_break.json", "w") as f:
-        json.dump({"break": False}, f)
+    reset_stop()  # 重置本任务的停止信号
 
     result_list = []
 
@@ -128,8 +127,7 @@ def main(
     total = len(images_list)
     logger.info(f"开始自动打码, 共 {total} 张图片...")
     for image in images_list:
-        _break = read_json("./outputs/temp_break.json")
-        if _break["break"]:
+        if check_stop():
             logger.warning("已停止生成!")
             break
 

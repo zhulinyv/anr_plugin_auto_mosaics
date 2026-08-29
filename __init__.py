@@ -53,7 +53,7 @@ def register(plugin: Plugin):
             Field(id="emoji", label="表情目录", type="path", default="./plugins/anr_plugin_auto_mosaics/emoji", folder=True, file=False, show_if={"field": "method", "equals": "表情"}),
         ],
         actions=[
-            Action(id="run", label="🛠️ 开始处理", inputs=["method", "pixel_size", "blur_radius", "line_spacing_max", "line_spacing_min", "line_width_max", "line_width_min", "color", "emoji", "path", "image", "part"], handler=_run_main),
+            Action(id="run", label="🛠️ 开始处理", uses_novelai=False, inputs=["method", "pixel_size", "blur_radius", "line_spacing_max", "line_spacing_min", "line_width_max", "line_width_min", "color", "emoji", "path", "image", "part"], handler=_run_main),
         ],
     )
 
@@ -72,7 +72,7 @@ def register(plugin: Plugin):
             ], default=data.get("sam_model", "./plugins/anr_plugin_auto_mosaics/models/sams/sam_vit_b_01ec64.pth"), show_if={"field": "detector", "contains": "SAM"}),
         ],
         actions=[
-            Action(id="save", label="💾 保存配置", inputs=["detector", "yolo_model", "sam_model"], handler=lambda v: {"text": save_config(v.get("detector", "YOLO+SAM"), v.get("yolo_model", ""), v.get("sam_model", ""))}),
+            Action(id="save", label="💾 保存配置", uses_novelai=False, inputs=["detector", "yolo_model", "sam_model"], handler=lambda v: {"text": save_config(v.get("detector", "YOLO+SAM"), v.get("yolo_model", ""), v.get("sam_model", ""))}),
         ],
     )
 
