@@ -210,3 +210,4 @@ __marimo__/
 models/sams/sam_vit_b_01ec64.pth
 models/sams/sam_vit_l_0b3195.pth
 models/sams/sam_vit_h_4b8939.pth
+requirements.txt.installed
