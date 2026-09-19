@@ -23,8 +23,8 @@ def color_change(color, default=(0, 0, 0)):
         if isinstance(color, (tuple, list)) and len(color) >= 3:
             try:
                 return tuple(max(0, min(255, round(float(c)))) for c in color[:3])
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as e:
+                logger.debug(f"颜色值解析失败, 使用默认色: {e}")
         return default
 
     color = color.strip()
@@ -72,6 +72,7 @@ def save_config(detector, yolo_model, sam_model: str):
             logger.success(f"{sam_model} 模型下载完成!")
         except Exception as e:
             logger.error(f"出现错误! {e}")
+            logger.opt(exception=True).debug("处理失败堆栈:")
 
     return "配置已保存, 即时生效!"
 

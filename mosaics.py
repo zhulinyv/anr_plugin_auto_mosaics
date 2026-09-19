@@ -279,8 +279,8 @@ class ImageMosaicProcessor:
             try:
                 emoji = Image.open(emoji_path).convert("RGB")
                 emojis.append(emoji)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"读取表情图片失败, 已跳过: {e}")
 
         mask_array = np.array(mask)
 
