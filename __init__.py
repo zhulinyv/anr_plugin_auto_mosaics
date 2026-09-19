@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ujson as json
 
+from plugins.anr_plugin_auto_mosaics.detector import warmup as warmup_detector
 from plugins.anr_plugin_auto_mosaics.utils import main, save_config
 from utils.helpers import read_json
 from utils.plugins import Action, Field, Panel, Plugin
@@ -80,3 +81,5 @@ def register(plugin: Plugin):
     plugin.description = "批量检测并打码敏感部位 (YOLO / SAM / NudeNet)"
     plugin.icon = "🫧"
     plugin.panels.extend([process_panel, config_panel])
+    # 后台预热检测器 (torch / ultralytics / 模型载入): 插件提前就绪, 首次点击不必等
+    plugin.warmup = warmup_detector
