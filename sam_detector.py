@@ -1,4 +1,5 @@
 import gc
+import hashlib
 import os
 from collections import namedtuple
 from typing import List, Optional, Tuple, Union
@@ -255,9 +256,14 @@ class UltraBBoxDetector:
 
 class SAMWrapper:
     def __init__(self, model_path, device_mode="AUTO"):
+        # 先落 device_mode 再加载模型: _load_model 抛错时 release_device 仍能安全读取该属性
+        self.device_mode = device_mode
+        self.device = None
+        # 复用的 SamPredictor 与其已编码图像的指纹 (见 predict_mask)
+        self._predictor = None
+        self._predictor_image_key = None
         # print(f"Loading SAM model from: **{os.path.basename(model_path)}**")
         self.model = self._load_model(model_path)
-        self.device_mode = device_mode
 
     def _load_model(self, model_name):
         if "vit_h" in model_name:
@@ -275,7 +281,8 @@ class SAMWrapper:
         return self.device
 
     def release_device(self):
-        if self.device_mode == "AUTO":
+        # device_mode 可能尚未赋值 (模型加载失败时): 用 getattr 兜底, 否则会 AttributeError
+        if getattr(self, "device_mode", "AUTO") == "AUTO":
             self.model.to("cpu")
             torch.cuda.empty_cache()
 
@@ -294,8 +301,18 @@ class SAMWrapper:
 
         try:
             img_np = np.clip(255.0 * image_tensor.cpu().numpy().squeeze(), 0, 255).astype(np.uint8)
-            predictor = SamPredictor(self.model)
-            predictor.set_image(img_np, "RGB")
+            # 复用同一个 SamPredictor: SamPredictor.set_image 会跑一次很重的图像编码,
+            # 原实现每次 predict_mask 都新建 predictor 并重跑编码器。
+            # 同一张图的 embedding 也缓存下来 (按形状 + 内容指纹判断是否换了图)。
+            predictor = self._predictor
+            if predictor is None:
+                predictor = SamPredictor(self.model)
+                self._predictor = predictor
+                self._predictor_image_key = None
+            image_key = (img_np.shape, hashlib.sha1(img_np.tobytes()).hexdigest())
+            if self._predictor_image_key != image_key:
+                predictor.set_image(img_np, "RGB")
+                self._predictor_image_key = image_key
             seg_items = segs[1]
             total_masks = []
 

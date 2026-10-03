@@ -4,6 +4,8 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 from scipy import ndimage
 
+from utils.logger import logger  # 原先缺失: emoji 读取失败时会 NameError 中断整个马赛克
+
 
 class ImageMosaicProcessor:
     def __init__(self):
@@ -30,21 +32,22 @@ class ImageMosaicProcessor:
 
         labeled_array, num_features = ndimage.label(binary_mask)
 
+        # ndimage.find_objects 一次遍历就算出全部连通域的包围盒;
+        # 原实现用 np.where(labeled_array == i) 为**每个**连通域全图扫描一遍,
+        # 蒙版较碎 (数百个连通域) 时是 O(连通域数 × 像素数)。调用方只用 bbox/center,
+        # 从不读 "pixels", 所以这里不再保留那份巨大的坐标数组。
         regions = []
-        for i in range(1, num_features + 1):
-            region_pixels = np.where(labeled_array == i)
-
-            if len(region_pixels[0]) > 0:
-                min_y, max_y = np.min(region_pixels[0]), np.max(region_pixels[0])
-                min_x, max_x = np.min(region_pixels[1]), np.max(region_pixels[1])
-
-                regions.append(
-                    {
-                        "pixels": region_pixels,
-                        "bbox": (min_x, min_y, max_x, max_y),
-                        "center": ((min_x + max_x) // 2, (min_y + max_y) // 2),
-                    }
-                )
+        for slice_y, slice_x in ndimage.find_objects(labeled_array):
+            if slice_y is None or slice_x is None:
+                continue
+            min_y, max_y = slice_y.start, slice_y.stop - 1
+            min_x, max_x = slice_x.start, slice_x.stop - 1
+            regions.append(
+                {
+                    "bbox": (min_x, min_y, max_x, max_y),
+                    "center": ((min_x + max_x) // 2, (min_y + max_y) // 2),
+                }
+            )
 
         return regions
 
@@ -67,17 +70,22 @@ class ImageMosaicProcessor:
 
         mask_indices = mask_array > 200
 
-        for y in range(0, height, pixel_size):
-            for x in range(0, width, pixel_size):
-                y_end = min(y + pixel_size, height)
-                x_end = min(x + pixel_size, width)
+        # 逐块处理: 掩码通常只覆盖画面一部分, 跳过未命中的块比"全图求块均值再回写"更快
+        # (试过 pad+reshape 与 reduceat 两种全向量化写法, 实测在稀疏掩码下都更慢)。
+        # 先算好掩码的块级命中图, 避免每块都做一次 np.any 切片。
+        pixel_size = max(1, int(pixel_size))
+        n_rows = (height + pixel_size - 1) // pixel_size
+        n_cols = (width + pixel_size - 1) // pixel_size
+        pad_h = n_rows * pixel_size - height
+        pad_w = n_cols * pixel_size - width
+        padded_mask = np.pad(mask_indices, ((0, pad_h), (0, pad_w)), mode="constant", constant_values=False)
+        hit_blocks = padded_mask.reshape(n_rows, pixel_size, n_cols, pixel_size).any(axis=(1, 3))
 
-                block_mask = mask_indices[y:y_end, x:x_end]
-                if np.any(block_mask):
-                    block_data = img_array[y:y_end, x:x_end]
-                    avg_color = np.mean(block_data, axis=(0, 1)).astype(int)
-
-                    result[y:y_end, x:x_end] = avg_color
+        for bi, bj in zip(*np.nonzero(hit_blocks)):
+            y0, x0 = bi * pixel_size, bj * pixel_size
+            y1 = min(y0 + pixel_size, height)
+            x1 = min(x0 + pixel_size, width)
+            result[y0:y1, x0:x1] = np.mean(img_array[y0:y1, x0:x1], axis=(0, 1)).astype(int)
 
         result_image = Image.fromarray(result)
 

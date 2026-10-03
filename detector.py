@@ -66,9 +66,11 @@ def _build_nudenet_detector():
     nude_detector = NudeDetector()
 
     def detect(image_path: str, part):
+        # NudeNet 不能处理含中文的路径: 复制一份纯 ASCII 路径的临时文件, 并把**副本**
+        # 交给 detect()。原先只复制不使用 (传的仍是原路径), 既白做一次 IO, 中文路径下照样失败。
         image_last_name = image_path.split(".")[-1]
-        shutil.copyfile(image_path, f"./outputs/temp_nudenet.{image_last_name}")
-        # 这个库不能包含中文路径
+        temp_path = f"./outputs/temp_nudenet.{image_last_name}"
+        shutil.copyfile(image_path, temp_path)
 
         empty_list = []
 
@@ -84,7 +86,7 @@ def _build_nudenet_detector():
         ]
 
         box_list = []
-        body = nude_detector.detect(image_path)
+        body = nude_detector.detect(temp_path)
         for part in body:
             if part["class"] in part_list:
                 empty_list.append(part["class"])
@@ -121,16 +123,17 @@ def _build_yolo_detector():
 
         box_list = []
         results = model(image_path, verbose=False)
-        result = json.loads((results[0]).to_json())
-        for i in result:
-            if i["name"] in part_list:
-                empty_list.append(i["name"])
-
-                x1 = round(i["box"]["x1"])
-                y1 = round(i["box"]["y1"])
-                x2 = round(i["box"]["x2"])
-                y2 = round(i["box"]["y2"])
-                box_list.append([x1, y1, x2, y2])
+        # 直接读 boxes 张量, 不再走 to_json() + json.loads() 的整包序列化/反序列化
+        # (SAM 那条路径本来就是这么读的, 见 sam_detector.py)。
+        boxes = results[0].boxes
+        names = results[0].names
+        if boxes is not None:
+            for cls_id, xyxy in zip(boxes.cls.tolist(), boxes.xyxy.tolist()):
+                name = names.get(int(cls_id), str(int(cls_id))) if isinstance(names, dict) else names[int(cls_id)]
+                if name in part_list:
+                    empty_list.append(name)
+                    x1, y1, x2, y2 = xyxy
+                    box_list.append([round(x1), round(y1), round(x2), round(y2)])
 
         logger.debug(f"检测到: {empty_list}")
 
