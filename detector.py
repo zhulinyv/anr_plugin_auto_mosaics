@@ -7,6 +7,7 @@ from PIL import Image, ImageDraw
 
 from utils import read_json
 from utils.logger import logger
+from utils.paths import job_temp_path
 
 data = read_json("./plugins/anr_plugin_auto_mosaics/config.json")
 
@@ -29,9 +30,9 @@ def create_rectangle_mask(image_path: str, coordinates: list):
         bbox = (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
         draw.rectangle(bbox, fill=255)
 
-    mask.save("./outputs/temp_mask.png")
+    mask.save(str(job_temp_path("mask.png")))
 
-    return "./outputs/temp_mask.png"
+    return str(job_temp_path("mask.png"))
 
 
 def _build_sam_detector():
@@ -52,7 +53,7 @@ def _build_sam_detector():
 
         _filter = ",".join(filters) if filters else "all"
 
-        output_path = processor.generate_combined_mask(image_path, "./outputs/temp_mask.png", filter=_filter)
+        output_path = processor.generate_combined_mask(image_path, str(job_temp_path("mask.png")), filter=_filter)
 
         return output_path
 
@@ -69,7 +70,7 @@ def _build_nudenet_detector():
         # NudeNet 不能处理含中文的路径: 复制一份纯 ASCII 路径的临时文件, 并把**副本**
         # 交给 detect()。原先只复制不使用 (传的仍是原路径), 既白做一次 IO, 中文路径下照样失败。
         image_last_name = image_path.split(".")[-1]
-        temp_path = f"./outputs/temp_nudenet.{image_last_name}"
+        temp_path = str(job_temp_path(f"nudenet.{image_last_name}"))
         shutil.copyfile(image_path, temp_path)
 
         empty_list = []
